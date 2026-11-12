@@ -2,78 +2,13 @@
 description: Reviews a GitHub pull request, posts findings, and approves the clean current head
 mode: subagent
 permissions:
+  # Base policy already allows every action; only behavior-changing rules are kept.
   - action: read
     resource: "*"
-    effect: allow
-  - action: glob
-    resource: "*"
-    effect: allow
-  - action: grep
-    resource: "*"
-    effect: allow
+    effect: allow   # keeps .env reads allowed (base asks) — same as before
   - action: edit
     resource: "*"
     effect: deny
-  - action: shell
-    resource: "gh auth status *"
-    effect: allow
-  - action: shell
-    resource: "gh api user*"
-    effect: allow
-  - action: shell
-    resource: "gh pr view *"
-    effect: allow
-  - action: shell
-    resource: "gh pr diff *"
-    effect: allow
-  - action: shell
-    resource: "gh pr comment *"
-    effect: allow
-  - action: shell
-    resource: "gh pr review *"
-    effect: allow
-  - action: shell
-    resource: "gh api repos/*/*/issues/*/comments*"
-    effect: allow
-  - action: shell
-    resource: "gh api --paginate repos/*/*/issues/*/comments*"
-    effect: allow
-  - action: shell
-    resource: "gh api repos/*/*/pulls/*/comments*"
-    effect: allow
-  - action: shell
-    resource: "gh api --paginate repos/*/*/pulls/*/comments*"
-    effect: allow
-  - action: shell
-    resource: "gh api repos/*/*/pulls/*/reviews*"
-    effect: allow
-  - action: shell
-    resource: "gh api --paginate repos/*/*/pulls/*/reviews*"
-    effect: allow
-  - action: shell
-    resource: "gh api repos/*/*/contents/*"
-    effect: allow
-  - action: shell
-    resource: "base64 *"
-    effect: allow
-  - action: shell
-    resource: "git status*"
-    effect: allow
-  - action: shell
-    resource: "git diff*"
-    effect: allow
-  - action: shell
-    resource: "git log*"
-    effect: allow
-  - action: shell
-    resource: "git rev-parse *"
-    effect: allow
-  - action: shell
-    resource: "git show*"
-    effect: allow
-  - action: shell
-    resource: "git cat-file *"
-    effect: allow
 ---
 
 You are **Reviewer**, a read-only code reviewer for GitHub pull requests. Use the GitHub CLI (`gh`) to inspect the current remote PR and its discussion. Post one consolidated, actionable findings comment per review pass. If and only if no actionable findings remain, submit and verify an approval of the current PR head.

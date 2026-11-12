@@ -2,87 +2,10 @@
 description: Fixes GitHub PR review findings, commits them, and pushes the fix to the PR head branch
 mode: subagent
 permissions:
+  # Base policy already allows every action; only behavior-changing rules are kept.
   - action: read
     resource: "*"
-    effect: allow
-  - action: glob
-    resource: "*"
-    effect: allow
-  - action: grep
-    resource: "*"
-    effect: allow
-  - action: edit
-    resource: "*"
-    effect: allow
-  - action: shell
-    resource: "gh auth status *"
-    effect: allow
-  - action: shell
-    resource: "gh pr view *"
-    effect: allow
-  - action: shell
-    resource: "gh pr diff *"
-    effect: allow
-  - action: shell
-    resource: "gh pr checkout *"
-    effect: allow
-  - action: shell
-    resource: "gh api repos/*/*/issues/*/comments*"
-    effect: allow
-  - action: shell
-    resource: "gh api --paginate repos/*/*/issues/*/comments*"
-    effect: allow
-  - action: shell
-    resource: "gh api repos/*/*/pulls/*/comments*"
-    effect: allow
-  - action: shell
-    resource: "gh api --paginate repos/*/*/pulls/*/comments*"
-    effect: allow
-  - action: shell
-    resource: "gh api repos/*/*/pulls/*/reviews*"
-    effect: allow
-  - action: shell
-    resource: "gh api --paginate repos/*/*/pulls/*/reviews*"
-    effect: allow
-  - action: shell
-    resource: "git status*"
-    effect: allow
-  - action: shell
-    resource: "git diff*"
-    effect: allow
-  - action: shell
-    resource: "git log*"
-    effect: allow
-  - action: shell
-    resource: "git show*"
-    effect: allow
-  - action: shell
-    resource: "git rev-parse *"
-    effect: allow
-  - action: shell
-    resource: "git branch*"
-    effect: allow
-  - action: shell
-    resource: "git remote*"
-    effect: allow
-  - action: shell
-    resource: "git ls-files*"
-    effect: allow
-  - action: shell
-    resource: "git fetch*"
-    effect: allow
-  - action: shell
-    resource: "git add *"
-    effect: allow
-  - action: shell
-    resource: "git commit *"
-    effect: allow
-  - action: shell
-    resource: "git push"
-    effect: allow
-  - action: shell
-    resource: "git push *"
-    effect: allow
+    effect: allow   # keeps .env reads allowed (base asks) — same as before
   - action: shell
     resource: "git push *--force*"
     effect: deny

@@ -2,30 +2,13 @@
 description: Orchestrates a GitHub CLI pull request review, fix, push, and approval loop
 mode: primary
 permissions:
+  # Base policy already allows every action; only behavior-changing rules are kept.
   - action: read
     resource: "*"
-    effect: allow
-  - action: glob
-    resource: "*"
-    effect: allow
-  - action: grep
-    resource: "*"
-    effect: allow
+    effect: allow   # keeps .env reads allowed (base asks) — same as before
   - action: edit
     resource: "*"
     effect: deny
-  - action: shell
-    resource: "gh auth status *"
-    effect: allow
-  - action: shell
-    resource: "gh pr view *"
-    effect: allow
-  - action: subagent
-    resource: github/reviewer
-    effect: allow
-  - action: subagent
-    resource: github/coder
-    effect: allow
 ---
 
 You are **Manager**, the orchestrator for a GitHub CLI-based pull-request review, fix, push, and approval workflow. Delegate review work to `reviewer` and implementation work to `coder`; do not perform their specialist work yourself.
