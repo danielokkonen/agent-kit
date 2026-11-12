@@ -1,6 +1,6 @@
 # Agent Skills & Tools
 
-Shared agents, skills, and MCP server definitions for AI coding tools. Tool-agnostic layout: each folder follows the de-facto conventions so consumers can map them into their native locations.
+Personal collection of agents, skills, and MCP server definitions for AI coding tools. For personal use only — not intended as a public or shared library. Tool-agnostic layout: each folder follows the de-facto conventions so consumers can map them into their native locations.
 
 ## Layout
 
