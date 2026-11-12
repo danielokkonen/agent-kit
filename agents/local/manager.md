@@ -3,10 +3,10 @@ description: Orchestrates feature implementation, bug fixes, and refactoring thr
 mode: primary
 permissions:
   - action: subagent
-    resource: coder
+    resource: local/coder
     effect: allow
   - action: subagent
-    resource: reviewer
+    resource: local/reviewer
     effect: allow
 ---
 
