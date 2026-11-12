@@ -21,10 +21,10 @@ permissions:
     resource: "gh pr view *"
     effect: allow
   - action: subagent
-    resource: pr/reviewer
+    resource: github/reviewer
     effect: allow
   - action: subagent
-    resource: pr/coder
+    resource: github/coder
     effect: allow
 ---
 
