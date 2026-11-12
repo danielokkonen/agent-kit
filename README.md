@@ -35,3 +35,11 @@ Example:
 ```sh
 ln -s "$PWD/skills" .claude/skills   # or ~/.config/opencode/skills for global use
 ```
+
+### Installing agents globally (OpenCode)
+
+Agent discovery has no "extra directories" option, so copy from this repo into the global folder. This repo is canonical — re-copy after editing agents:
+
+```sh
+cp -r <path-to-agent-kit>/agents/* ~/.config/opencode/agents/
+```
