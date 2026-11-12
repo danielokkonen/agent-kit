@@ -25,6 +25,8 @@ Browsers are cached under `~/.cache/ms-playwright` and shared across installs, s
 
 All script paths below are relative to this skill's directory (the folder containing `SKILL.md`); run them from there.
 
+**Profile first:** if the app under test has no `profiles/<app>.mjs`, create one now (see **Adding a new app**) — every step below assumes it exists. Profiles are per-app setup done once; only scenario files are written fresh per run.
+
 1. **Scope** — default: the current branch being worked on, no prompt needed.
    - On a feature branch: diff from `git merge-base origin/master HEAD` to HEAD + uncommitted changes.
    - Working directly on `master`: anchor at the last `chore(release)` commit (everything unreleased).
@@ -103,6 +105,46 @@ The runner just loads each `assertions[].file` module and calls its default expo
 - **HTTP API** — `scripts/http-assert.mjs` (generic backend). Check shapes: `{ method?, path, status?, expect?, body? }` where `path` is a route or absolute URL, `status` defaults to 200, and `expect` must be a subset of the parsed JSON response. It reads `baseUrl` from the url target (or pass an absolute `path`).
 
 To support another backend, add a hook module with the same default-export signature and register it in your profile — never fork the runner.
+
+## Adding a new app (profile)
+
+A profile is per-app setup done **once**, before any test run — never written fresh per scenario. It lives at `profiles/<app>.mjs`. The only hard requirement is that it can produce the target config file for the runner; everything else is convention:
+
+- `prepare [--out <file>]` — seed/isolate data and write the target file (print `{ baseline, targetFile }`; the baseline feeds your scenario's expected values).
+- `teardown <cwd>` — discard scratch state (only if you create any).
+- `scope` — print changed files for scope derivation (optional; "just read the diff" works too).
+
+Minimal URL-app profile:
+
+```js
+// profiles/my-web-app.mjs
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+
+function cli(argv) {
+  const [command, ...rest] = argv;
+  if (command === 'prepare') {
+    let out; for (let i = 0; i < rest.length - 1; i++) if (rest[i] === '--out') out = rest[++i];
+    const target = {
+      type: 'url',
+      launch: { baseUrl: 'http://localhost:3000/', healthCheckUrl: 'http://localhost:3000/health' },
+      assertions: [{ file: path.resolve(scriptDir, '..', 'scripts', 'http-assert.mjs') }],
+    };
+    if (out) fs.writeFileSync(out, `export default ${JSON.stringify(target, null, 2)};\n`);
+    console.log(JSON.stringify({ baseline: {}, targetFile: out ?? null }, null, 2));
+    return;
+  }
+  throw new Error('Usage: my-web-app.mjs prepare [--out <file>]');
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) cli(process.argv.slice(2));
+export default { name: 'my-web-app' };
+```
+
+Adapt `baseUrl`/`healthCheckUrl`, swap in the assertion hook that matches your backend, and add `teardown` if you seed scratch state. Then run it exactly like GameTracker's: `node profiles/my-web-app.mjs prepare --out /tmp/opencode/app-test/target.mjs`.
 
 ## Evidence & artifacts
 
