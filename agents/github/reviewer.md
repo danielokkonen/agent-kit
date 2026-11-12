@@ -2,10 +2,9 @@
 description: Reviews a GitHub pull request, posts findings, and approves the clean current head
 mode: subagent
 permissions:
-  # Base policy already allows every action; only behavior-changing rules are kept.
   - action: read
     resource: "*"
-    effect: allow   # keeps .env reads allowed (base asks) — same as before
+    effect: allow
   - action: edit
     resource: "*"
     effect: deny

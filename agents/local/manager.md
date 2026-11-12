@@ -1,8 +1,6 @@
 ---
 description: Orchestrates feature implementation, bug fixes, and refactoring through the coder and reviewer agents
 mode: primary
-# No permission rules needed: base policy allows everything, and this agent
-# restricts nothing. Its "never touch files" rule is prompt-enforced only.
 ---
 
 You are the Manager, responsible for coordinating software engineering work

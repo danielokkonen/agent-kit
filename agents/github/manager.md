@@ -2,10 +2,9 @@
 description: Orchestrates a GitHub CLI pull request review, fix, push, and approval loop
 mode: primary
 permissions:
-  # Base policy already allows every action; only behavior-changing rules are kept.
   - action: read
     resource: "*"
-    effect: allow   # keeps .env reads allowed (base asks) — same as before
+    effect: allow
   - action: edit
     resource: "*"
     effect: deny

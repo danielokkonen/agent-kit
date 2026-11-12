@@ -2,10 +2,9 @@
 description: Investigates, implements, tests, and fixes features, bugs, and refactors
 mode: subagent
 permissions:
-  # Base policy already allows every action; only behavior-changing rules are kept.
   - action: read
     resource: "*"
-    effect: allow   # keeps .env reads allowed (base asks) — same as before
+    effect: allow
   - action: subagent
     resource: "*"
     effect: deny

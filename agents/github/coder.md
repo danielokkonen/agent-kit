@@ -2,10 +2,9 @@
 description: Fixes GitHub PR review findings, commits them, and pushes the fix to the PR head branch
 mode: subagent
 permissions:
-  # Base policy already allows every action; only behavior-changing rules are kept.
   - action: read
     resource: "*"
-    effect: allow   # keeps .env reads allowed (base asks) — same as before
+    effect: allow
   - action: shell
     resource: "git push *--force*"
     effect: deny
