@@ -1,16 +1,25 @@
 ---
 name: app-test
-description: Playwright-driven UI testing for running Electron/web apps. Use after implementing a feature or fixing a bug to drive the real UI, assert backend state via profile hooks, and report pass/fail with screenshots so failures can be fixed and re-run iteratively.
+description: Playwright-driven UI testing for local Electron and web apps. Use after implementing a feature or fixing a bug to drive the real UI, assert backend state via profile hooks (SQLite, an HTTP API, or anything else), and report pass/fail with screenshots so failures can be fixed and re-run iteratively.
 ---
 
 # app-test
 
-Test a **running** app by driving its real UI with Playwright (plain library, not `@playwright/test`). The agent authors a scenario file targeting the changed feature, runs it through `scripts/run-scenario.mjs`, and gets pass/fail per step plus screenshots and console errors on failure. Backend state is verified after mutating steps via assertion hooks registered by the profile.
+Test a **running** app by driving its real UI with Playwright (plain library, not `@playwright/test`). The agent authors a scenario file targeting the changed feature, runs it through `scripts/run-scenario.mjs`, and gets pass/fail per step plus screenshots and console errors on failure. Backend state is verified after mutating steps via assertion hooks registered by the profile — the hooks are storage-agnostic (SQLite, HTTP API, Postgres, files, ...).
 
 ## Architecture: generic core + per-app profiles
 
-- **Generic core** (app-agnostic): `scripts/run-scenario.mjs` — launches the target (`electron` or `url`), executes scenario steps, screenshots failures, collects console errors, invokes assertion hooks after mutating steps, reports pass/fail.
-- **Per-app profile**: how to build/start the app, data isolation, backend assertion hooks, scope-derivation conventions. GameTracker's profile is `profiles/game-tracker.mjs`; its build harness is `scripts/build-app.mjs` and its DB hook is `scripts/db-assert.mjs`. Adding another app = one new profile file (plus any hook scripts it needs), never a fork of the core runner.
+- **Generic core** (app-agnostic): `scripts/run-scenario.mjs` — launches the target (`electron` or `url`), executes scenario steps, screenshots failures, collects console errors, invokes assertion hooks after mutating steps, reports pass/fail. It does **not** depend on the app under test having a `package.json` or its own toolchain: Playwright is installed once in this skill's directory (see Setup).
+- **Assertion hooks are storage-agnostic.** A hook is any module with `default export async function(ctx)`. The runner passes it `{ cwd, baseUrl, launch, phase, stepTitle, checks }`, so a hook can assert against whatever the app persists. There is no built-in assumption it's a DB — pick or author whichever matches your backend (see **Assertion hooks** below).
+- **Per-app profile**: how to build/start the app, data isolation/seeding, which assertion hook(s) to register, scope-derivation conventions. GameTracker's profile is `profiles/game-tracker.mjs`; its build harness is `scripts/build-app.mjs`, and it asserts the scratch DB with `scripts/sqlite-assert.mjs`. Adding another app = one new profile file (plus any hook scripts it needs), never a fork of the core runner.
+
+## Setup (once)
+
+Playwright lives in this skill's own `node_modules`, not the app's:
+
+    npm install        # run from this skill's directory (the folder with SKILL.md)
+
+Browsers are cached under `~/.cache/ms-playwright` and shared across installs, so a matching Playwright version reuses them. To use a different Playwright instead of the local copy, set `PLAYWRIGHT_MODULE` to a resolvable module/path.
 
 ## Workflow
 
@@ -20,26 +29,28 @@ All script paths below are relative to this skill's directory (the folder contai
    - On a feature branch: diff from `git merge-base origin/master HEAD` to HEAD + uncommitted changes.
    - Working directly on `master`: anchor at the last `chore(release)` commit (everything unreleased).
    - Always overridable: "test only X" or "since commit Y" narrows the scenario instead of re-deriving scope.
-   - GameTracker helper: `node profiles/game-tracker.mjs scope` prints `{ branch, anchor, files }`. Map changed files → affected pages/features using the architecture conventions in AGENTS.md (views in `src/client/views/`, features in `src/client/components/<feature>/`).
-2. **Build / start** — GameTracker: `npm run build:app` (sanctioned harness exception to "never run vite build directly"). Web apps: ensure the app is up and health-check the URL.
-3. **Data prep** — GameTracker: scratch-dir copy of `dev.db`, never touches the real DB:
+   - GameTracker helper: `node profiles/game-tracker.mjs scope` prints `{ branch, anchor, files }`. Map changed files → affected pages/features using the architecture conventions in AGENTS.md (views in `src/client/views/`, features in `src/client/components/<feature>/`). Other apps: just read the diff.
+2. **Build / start** — bring the app under test up, however that works for it.
+   - GameTracker (Electron): `npm run build:app` (sanctioned harness exception to "never run vite build directly").
+   - Web apps: start/confirm your dev or prod server is listening; the runner connects to `baseUrl`. Add a `healthCheckUrl` so the runner waits for readiness instead of racing a slow startup, and a `storageState` path if the app needs a logged-in session.
+3. **Data prep** — isolate/seed whatever the app persists, per profile (GameTracker copies its SQLite DB to a scratch dir and never touches the real one):
    ```
    node profiles/game-tracker.mjs prepare --out /tmp/opencode/app-test/target.mjs
    ```
-   Prints `{ cwd, baseline, targetFile }`. The baseline (e.g. game count) is what scenario assertions compare against. Web profiles do none or per-profile seeding.
+   Prints `{ cwd, baseline, targetFile }`. The baseline (e.g. game count) is what scenario assertions compare against; `teardown` discards the scratch dir afterwards. Other backends seed via their own profile hook/prepare step (HTTP API calls, a throwaway Postgres schema, fixture files), or skip this if the feature under test is stateless.
 4. **Drive** — author a scenario file (format below), then:
    ```
    node scripts/run-scenario.mjs /tmp/opencode/app-test/<scenario>.mjs --target <target-file>
    ```
    The window is visible so the user can watch. Cover happy path + edge cases for the changed feature (form validation, IPC round-trips, date display). Rely on Playwright auto-waiting; add explicit waits only where a run shows flakiness.
-5. **Assert** — after each mutating step, the profile's hooks run automatically (GameTracker: `db-assert.mjs` checks the scratch DB copy; at launch it also verifies migrations ran cleanly).
+5. **Assert** — after each mutating step, the profile's hooks run automatically (GameTracker: `sqlite-assert.mjs` checks the scratch DB copy and verifies migrations ran cleanly at launch; an HTTP backend would use `http-assert.mjs`).
 6. **Report & loop** — read the pass/fail summary; on failure inspect the screenshot path and console errors printed by the runner, fix, and re-run just the failing scenario.
 
 **Teardown (always):** after a run completes or is abandoned:
 ```
 node profiles/game-tracker.mjs teardown <cwd-from-prepare>
 ```
-The scratch dir is discarded; there is no restore step.
+The scratch dir is discarded; there is no restore step. (Only for profiles that create scratch state.)
 
 ## Target config format
 
@@ -53,9 +64,12 @@ export default {
 };
 ```
 
-- `type: 'electron'` → launched via Playwright `_electron.launch({ args: [entry], cwd })`; the first window is driven.
-- `type: 'url'` → headless Chromium navigates to `launch.baseUrl`.
-- Each assertion in `assertions` is a module whose default export is `async function ({ cwd, phase, stepTitle, checks, ...args }) => {}`. `phase` is `'launch'` (before steps) or `'step'` (after each mutating step).
+- `type: 'electron'` → launched via Playwright `_electron.launch({ args: [entry], cwd })`; the first window is driven. `launch.executablePath` points at the app's Electron binary.
+- `type: 'url'` → Chromium navigates to `launch.baseUrl`. Optional fields on `launch`:
+  - `healthCheckUrl` — polled until it returns 2xx/3xx before steps run (waits for a slow server instead of racing it).
+  - `storageState` — path to a Playwright storage-state JSON, for apps that need a logged-in session.
+  - `headless` — default `true`; set `false` to watch the browser.
+- Each assertion in `assertions` is a module whose default export is `async function ({ cwd, baseUrl, launch, phase, stepTitle, checks }) => {}`. `phase` is `'launch'` (before steps) or `'step'` (after each mutating step).
 
 ## Scenario file format
 
@@ -70,7 +84,7 @@ export default {
       title: 'submit new game form',
       mutating: true, // hooks run after this step (also triggered by a non-empty assertions array)
       assertions: [
-        { table: 'Game', count: 13 }, // baseline.gameCount + 1
+        { table: 'Game', count: 13 }, // baseline.gameCount + 1 — shape depends on your hook
         { table: 'Game', where: { name: 'Hades' }, fields: { franchise: '', status: 'Not started' } },
       ],
       run: async ({ page }) => { /* fill form, submit */ },
@@ -79,7 +93,16 @@ export default {
 };
 ```
 
-`db-assert.mjs` check shapes (GameTracker): `{ table, count }` — exact row count; `{ table, where, fields? }` — exactly one matching row, with optional field equality (`null` matches SQL NULL). Compute expected counts from the `baseline` printed by `prepare`.
+The step's `assertions` array is passed to your hook as `checks`; see **Assertion hooks** below for the check shapes each example expects.
+
+### Assertion hooks (storage-agnostic)
+
+The runner just loads each `assertions[].file` module and calls its default export with the context above — it knows nothing about your storage. Two examples ship in this skill:
+
+- **SQLite** — `scripts/sqlite-assert.mjs`. Step check shapes: `{ table, count }` for an exact row count; `{ table, where, fields? }` for exactly one matching row with optional field equality (`null` matches SQL NULL); compute expected counts from the `baseline` printed by `prepare`. The launch phase is opt-in — pass `args: { expectedTables?, minUserVersion? }` in your profile to verify migrations ran (GameTracker does this), or omit both and it just confirms the file opens as a readable SQLite DB. `dbFile` (default `dev.db`) can also be overridden via args.
+- **HTTP API** — `scripts/http-assert.mjs` (generic backend). Check shapes: `{ method?, path, status?, expect?, body? }` where `path` is a route or absolute URL, `status` defaults to 200, and `expect` must be a subset of the parsed JSON response. It reads `baseUrl` from the url target (or pass an absolute `path`).
+
+To support another backend, add a hook module with the same default-export signature and register it in your profile — never fork the runner.
 
 ## Evidence & artifacts
 

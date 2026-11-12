@@ -6,24 +6,33 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const EVIDENCE_ROOT = '/tmp/opencode/app-test';
 const LAUNCH_TIMEOUT_MS = 60_000;
-
-function findProjectDir(startDir) {
-  let dir = startDir;
-  while (true) {
-    if (fs.existsSync(path.join(dir, 'package.json'))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) throw new Error('Could not locate project root (package.json)');
-    dir = parent;
-  }
-}
+const HEALTH_POLL_INTERVAL_MS = 500;
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-// Invoked with cwd = the project root; this script may live outside the repo (global skill).
-const startDir = fs.existsSync(path.join(process.cwd(), 'package.json')) ? process.cwd() : scriptDir;
-const projectDir = findProjectDir(startDir);
+// The skill owns its Playwright dependency (skills/app-test/node_modules), so the runner
+// does not depend on the app under test having a package.json or playwright installed.
+const skillRoot = path.resolve(scriptDir, '..');
 
-// Resolve playwright from the project, not this (possibly global) script's location.
-const require = createRequire(path.join(projectDir, 'package.json'));
+let cachedPlaywright;
+function getPlaywright() {
+  if (!cachedPlaywright) {
+    const requireFromSkill = createRequire(path.join(skillRoot, 'package.json'));
+    // Escape hatch: point at an explicit module/path if you don't want the skill-local copy.
+    if (process.env.PLAYWRIGHT_MODULE) {
+      cachedPlaywright = requireFromSkill(process.env.PLAYWRIGHT_MODULE);
+    } else {
+      try {
+        cachedPlaywright = requireFromSkill('playwright');
+      } catch (err) {
+        throw new Error(
+          'Could not resolve Playwright from the skill directory. Run "npm install" in ' +
+            `${skillRoot} (or set PLAYWRIGHT_MODULE to a resolvable playwright).`,
+        );
+      }
+    }
+  }
+  return cachedPlaywright;
+}
 
 function usage() {
   console.error('Usage: node run-scenario.mjs <scenario-file> --target <target-file>');
@@ -52,10 +61,30 @@ function slugify(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForReady(context, url, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    try {
+      const res = await context.request.get(url);
+      if (res.ok()) return;
+      lastError = new Error(`HTTP ${res.status()}`);
+    } catch (err) {
+      lastError = err;
+    }
+    await sleep(HEALTH_POLL_INTERVAL_MS);
+  }
+  throw new Error(`Health check did not become ready at ${url}${lastError ? `: ${lastError.message}` : ''}`);
+}
+
 async function launchTarget(target) {
   if (target.type === 'electron') {
-    const { _electron } = require('playwright');
-    const app = await _electron.launch({
+    const pw = getPlaywright();
+    const app = await pw._electron.launch({
       args: [target.launch.entry],
       cwd: target.launch.cwd,
       executablePath: target.launch.executablePath,
@@ -65,9 +94,16 @@ async function launchTarget(target) {
     return { page, close: () => app.close() };
   }
   if (target.type === 'url') {
-    const { chromium } = require('playwright');
-    const browser = await chromium.launch({ timeout: LAUNCH_TIMEOUT_MS });
-    const page = await browser.newPage();
+    const pw = getPlaywright();
+    const browser = await pw.chromium.launch({ headless: target.launch.headless ?? true, timeout: LAUNCH_TIMEOUT_MS });
+    const contextOptions = {};
+    if (target.launch.storageState) contextOptions.storageState = target.launch.storageState;
+    const context = await browser.newContext(contextOptions);
+    const page = await context.newPage();
+    // Wait for a slow server to come up instead of racing it, when the profile opts in.
+    if (target.launch.healthCheckUrl) {
+      await waitForReady(context, target.launch.healthCheckUrl, LAUNCH_TIMEOUT_MS);
+    }
     await page.goto(target.launch.baseUrl, { waitUntil: 'domcontentloaded' });
     return { page, close: () => browser.close() };
   }
@@ -88,6 +124,19 @@ async function runHooks(assertions, context) {
     const mod = await loadModule(assertion.file);
     await mod.default({ ...assertion.args, ...context });
   }
+}
+
+// Storage-agnostic hook context: carries both the Electron/scratch `cwd` and the web `baseUrl`,
+// plus the full launch config, so a hook can reach whatever backend the app persists to.
+function hookContext(target, phase, stepTitle, checks) {
+  return {
+    cwd: target.launch.cwd,
+    baseUrl: target.launch.baseUrl,
+    launch: target.launch,
+    phase,
+    stepTitle,
+    checks,
+  };
 }
 
 function normalizeSteps(scenario) {
@@ -129,7 +178,7 @@ async function main() {
   let aborted = false;
 
   try {
-    await runHooks(target.assertions, { cwd: target.launch.cwd, phase: 'launch', stepTitle: '', checks: [] });
+    await runHooks(target.assertions, hookContext(target, 'launch', '', []));
 
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -138,12 +187,7 @@ async function main() {
       try {
         await step.run({ page: launched.page });
         if (step.mutating || Array.isArray(step.assertions)) {
-          await runHooks(target.assertions, {
-            cwd: target.launch.cwd,
-            phase: 'step',
-            stepTitle: result.title,
-            checks: step.assertions ?? [],
-          });
+          await runHooks(target.assertions, hookContext(target, 'step', result.title, step.assertions ?? []));
         }
       } catch (err) {
         result.status = 'fail';

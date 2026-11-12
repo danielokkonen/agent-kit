@@ -83,7 +83,13 @@ function buildTarget({ cwd }) {
       cwd,
       executablePath: path.join(projectDir, 'node_modules/electron/dist/electron'),
     },
-    assertions: [{ file: path.resolve(scriptDir, '..', 'scripts', 'db-assert.mjs') }],
+    assertions: [
+      {
+        file: path.resolve(scriptDir, '..', 'scripts', 'sqlite-assert.mjs'),
+        // Launch-phase migration check for GameTracker's schema (see sqlite-assert.mjs).
+        args: { expectedTables: ['Game', 'Tokens', 'Settings', 'GameActivity'], minUserVersion: 1 },
+      },
+    ],
   };
 }
 

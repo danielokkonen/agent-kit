@@ -10,14 +10,15 @@ Personal collection of agents, skills, and MCP server definitions for AI coding 
 │   └── <skill-id>/
 │       ├── SKILL.md         # required; frontmatter: name, description
 │       ├── scripts/         # optional supporting files, paths relative to this dir
-│       └── references/
+│       ├── references/
+│       └── package.json     # optional: skill's own deps (e.g. app-test); node_modules/ is gitignored
 ├── mcp/                     # optional per-server snippets for selective sharing
 └── .mcp.json                # MCP server manifest (single source of truth)
 ```
 
 ## Conventions
 
-- **Skills** — one directory per skill under `skills/`, named after the skill ID. IDs are lowercase kebab-case and match the folder name; keep them unique across the repo. Supporting files (`scripts/`, `references/`) live beside `SKILL.md`; paths written inside a skill are relative to its directory.
+- **Skills** — one directory per skill under `skills/`, named after the skill ID. IDs are lowercase kebab-case and match the folder name; keep them unique across the repo. Supporting files (`scripts/`, `references/`) live beside `SKILL.md`; paths written inside a skill are relative to its directory. A skill may also be self-contained with its own Node dependencies — commit `package.json` (and lockfile) and gitignore `node_modules/` — so it does not depend on the consuming project; `app-test` ships Playwright this way.
 - **Agents** — one `.md` file per agent in `agents/`. Frontmatter carries at least `name` and `description`; tool-specific fields (model, permissions) may be added as needed by the consuming harness.
 - **MCP** — server definitions live in `.mcp.json` under `mcpServers`. The optional `mcp/` folder holds per-server snippets for cherry-picking; `.mcp.json` stays canonical.
 
