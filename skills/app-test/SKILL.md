@@ -14,20 +14,22 @@ Test a **running** app by driving its real UI with Playwright (plain library, no
 
 ## Workflow
 
+All script paths below are relative to this skill's directory (the folder containing `SKILL.md`); run them from there.
+
 1. **Scope** — default: the current branch being worked on, no prompt needed.
    - On a feature branch: diff from `git merge-base origin/master HEAD` to HEAD + uncommitted changes.
    - Working directly on `master`: anchor at the last `chore(release)` commit (everything unreleased).
    - Always overridable: "test only X" or "since commit Y" narrows the scenario instead of re-deriving scope.
-   - GameTracker helper: `node $HOME/Documents/GitHub/Skills/app-test/profiles/game-tracker.mjs scope` prints `{ branch, anchor, files }`. Map changed files → affected pages/features using the architecture conventions in AGENTS.md (views in `src/client/views/`, features in `src/client/components/<feature>/`).
+   - GameTracker helper: `node profiles/game-tracker.mjs scope` prints `{ branch, anchor, files }`. Map changed files → affected pages/features using the architecture conventions in AGENTS.md (views in `src/client/views/`, features in `src/client/components/<feature>/`).
 2. **Build / start** — GameTracker: `npm run build:app` (sanctioned harness exception to "never run vite build directly"). Web apps: ensure the app is up and health-check the URL.
 3. **Data prep** — GameTracker: scratch-dir copy of `dev.db`, never touches the real DB:
    ```
-   node $HOME/Documents/GitHub/Skills/app-test/profiles/game-tracker.mjs prepare --out /tmp/opencode/app-test/target.mjs
+   node profiles/game-tracker.mjs prepare --out /tmp/opencode/app-test/target.mjs
    ```
    Prints `{ cwd, baseline, targetFile }`. The baseline (e.g. game count) is what scenario assertions compare against. Web profiles do none or per-profile seeding.
 4. **Drive** — author a scenario file (format below), then:
    ```
-   node $HOME/Documents/GitHub/Skills/app-test/scripts/run-scenario.mjs /tmp/opencode/app-test/<scenario>.mjs --target <target-file>
+   node scripts/run-scenario.mjs /tmp/opencode/app-test/<scenario>.mjs --target <target-file>
    ```
    The window is visible so the user can watch. Cover happy path + edge cases for the changed feature (form validation, IPC round-trips, date display). Rely on Playwright auto-waiting; add explicit waits only where a run shows flakiness.
 5. **Assert** — after each mutating step, the profile's hooks run automatically (GameTracker: `db-assert.mjs` checks the scratch DB copy; at launch it also verifies migrations ran cleanly).
@@ -35,7 +37,7 @@ Test a **running** app by driving its real UI with Playwright (plain library, no
 
 **Teardown (always):** after a run completes or is abandoned:
 ```
-node $HOME/Documents/GitHub/Skills/app-test/profiles/game-tracker.mjs teardown <cwd-from-prepare>
+node profiles/game-tracker.mjs teardown <cwd-from-prepare>
 ```
 The scratch dir is discarded; there is no restore step.
 
