@@ -101,11 +101,13 @@ Steps receive `{ page, expect }` — no imports needed in scenario files. `expec
 
 The step's `assertions` array is passed to your hook as `checks`; see **Assertion hooks** below for the check shapes each example expects.
 
+To verify a rejected action persisted nothing (invalid form submit, cancelled dialog), mark that step `mutating: true` with count/absent checks — hooks run after any mutating step even though state should be unchanged.
+
 ### Assertion hooks (storage-agnostic)
 
 The runner just loads each `assertions[].file` module and calls its default export with the context above — it knows nothing about your storage. Two examples ship in this skill:
 
-- **SQLite** — `scripts/sqlite-assert.mjs`. Step check shapes: `{ table, count }` for an exact row count; `{ table, where, fields? }` for exactly one matching row with optional field equality (`null` matches SQL NULL); compute expected counts from the `baseline` printed by `prepare`. The launch phase is opt-in — pass `args: { expectedTables?, minUserVersion? }` in your profile to verify migrations ran (GameTracker does this), or omit both and it just confirms the file opens as a readable SQLite DB. `dbFile` (default `dev.db`) can also be overridden via args.
+- **SQLite** — `scripts/sqlite-assert.mjs`. Step check shapes: `{ table, count }` for an exact row count; `{ table, where, fields? }` for exactly one matching row with optional field equality (`null` matches SQL NULL); `{ table, where, absent: true }` to assert no matching rows (e.g. after a delete — more precise than a total-count check). Compute expected counts from the `baseline` printed by `prepare`. The launch phase is opt-in — pass `args: { expectedTables?, minUserVersion? }` in your profile to verify migrations ran (GameTracker does this), or omit both and it just confirms the file opens as a readable SQLite DB. `dbFile` (default `dev.db`) can also be overridden via args.
 - **HTTP API** — `scripts/http-assert.mjs` (generic backend). Check shapes: `{ method?, path, status?, expect?, body? }` where `path` is a route or absolute URL, `status` defaults to 200, and `expect` must be a subset of the parsed JSON response. It reads `baseUrl` from the url target (or pass an absolute `path`).
 
 To support another backend, add a hook module with the same default-export signature and register it in your profile — never fork the runner.

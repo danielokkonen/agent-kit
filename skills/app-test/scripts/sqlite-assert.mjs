@@ -60,7 +60,15 @@ function rowCheck(db, table, where, fields) {
   }
 }
 
+function absentCheck(db, table, where) {
+  const clauses = Object.entries(where).map(([column, value]) => `${quoteIdentifier(column)} = ?`);
+  const params = Object.values(where);
+  const rows = db.prepare(`SELECT * FROM ${quoteIdentifier(table)} WHERE ${clauses.join(' AND ')}`).all(...params);
+  if (rows.length > 0) throw new Error(`sqlite-assert: expected no ${table} row matching ${JSON.stringify(where)}, found ${rows.length}`);
+}
+
 function stepCheck(db, check) {
+  if (check.absent === true && check.where !== undefined) return absentCheck(db, check.table, check.where);
   if (typeof check.count === 'number') return countCheck(db, check.table, check.count);
   if (check.where !== undefined) return rowCheck(db, check.table, check.where, check.fields);
   throw new Error('sqlite-assert: each check needs "count" or "where"');

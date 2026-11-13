@@ -21,8 +21,15 @@ Home / Games / Import from Steam / Settings — click via `getByRole('link', { n
 - Settings: "General" heading, "Dark Mode" label
 - Steam import: search field placeholder "Search games..."
 
+## Behavior facts (no need to re-read source)
+- Delete is immediate — no confirmation dialog; click the delete IconButton at row end, expect "Game deleted" snackbar.
+- Details modal status Select auto-saves on change (calls update immediately); there is no Save button.
+- Create form has no status field; backend defaults new games to `Not started`.
+- For list-presence assertions use one of prepare's `sampleGames` names (baseline-dependent data).
+
 ## Gotchas
 - MUI Select menu items render with `role="option"` (not "menuitem"), plus `data-value` — select via `getByRole('option', { name, exact: true })`.
+- To assert client-side validation failure: MUI sets `aria-invalid="true"` on invalid fields — use `toHaveAttribute('aria-invalid', 'true')`, not exact error text.
 - Create form's yup schema requires Franchise (`string().required()`) even though the DB allows empty — fill it in create scenarios.
 - Create form Franchise is a freeSolo Autocomplete wired to Formik's handleChange — plain `.fill()` works, no Enter needed.
 - `getByText` on game names needs `{ exact: true }` — franchise cells can contain the name as a substring (strict-mode violation otherwise).
