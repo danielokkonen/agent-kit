@@ -2,6 +2,15 @@
 description: Orchestrates a GitHub CLI pull request review, fix, push, and approval loop
 mode: primary
 permissions:
+  - action: subagent
+    resource: "*"
+    effect: deny
+  - action: subagent
+    resource: "github/coder"
+    effect: allow
+  - action: subagent
+    resource: "github/reviewer"
+    effect: allow
   - action: read
     resource: "*"
     effect: allow
