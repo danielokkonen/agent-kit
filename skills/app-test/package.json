@@ -4,6 +4,7 @@
   "private": true,
   "description": "Playwright dependency for the app-test skill. Kept local to the skill so the runner does not depend on the target project having a package.json or its own toolchain.",
   "dependencies": {
+    "@playwright/test": "1.62.0",
     "playwright": "1.62.0"
   }
 }

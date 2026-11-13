@@ -1,5 +1,10 @@
-import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+// Load node:sqlite after clearing warning listeners so its ExperimentalWarning stays out of runner output.
+process.removeAllListeners('warning');
+const { DatabaseSync } = require('node:sqlite');
 
 const DB_FILE = 'dev.db';
 

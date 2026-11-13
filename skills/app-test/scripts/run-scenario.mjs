@@ -34,6 +34,17 @@ function getPlaywright() {
   return cachedPlaywright;
 }
 
+let cachedExpect;
+function getExpect() {
+  if (!cachedExpect) {
+    const requireFromSkill = createRequire(path.join(skillRoot, 'package.json'));
+    // @playwright/test's expect works standalone (no test runner); it is pinned to the
+    // same version as the skill-local playwright.
+    cachedExpect = requireFromSkill('@playwright/test').expect;
+  }
+  return cachedExpect;
+}
+
 function usage() {
   console.error('Usage: node run-scenario.mjs <scenario-file> --target <target-file>');
 }
@@ -185,7 +196,8 @@ async function main() {
       const result = { title: step.title ?? `step ${i + 1}`, status: 'pass' };
       results.push(result);
       try {
-        await step.run({ page: launched.page });
+        const expect = getExpect();
+        await step.run({ page: launched.page, expect });
         if (step.mutating || Array.isArray(step.assertions)) {
           await runHooks(target.assertions, hookContext(target, 'step', result.title, step.assertions ?? []));
         }
@@ -215,6 +227,14 @@ async function main() {
   const passed = results.filter((r) => r.status === 'pass').length;
   const failed = results.filter((r) => r.status === 'fail').length;
   console.log(`\nSummary: ${passed} passed, ${failed} failed, ${steps.length - results.length} skipped`);
+  if (aborted) {
+    const mutatingPassed = results.filter(
+      (r, i) => r.status === 'pass' && (steps[i].mutating || Array.isArray(steps[i].assertions))
+    ).length;
+    if (mutatingPassed > 0) {
+      console.log(`WARNING: ${mutatingPassed} mutating step(s) completed before the failure — re-run data prepare before retrying, scenario assertions assume a clean baseline.`);
+    }
+  }
   if (consoleErrors.length > 0) {
     console.log(`Console errors (${consoleErrors.length}):`);
     for (const text of consoleErrors) console.log(`  - ${text}`);
